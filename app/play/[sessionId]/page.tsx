@@ -9,7 +9,7 @@ function clamp(n: number, lo: number, hi: number) {
 }
 
 function calculateOverlap(studentRange: any, correctRanges: any[]) {
-  if (!studentRange) return 0;
+  if (!studentRange || !correctRanges || correctRanges.length === 0) return 0;
   
   let maxScore = 0;
   
@@ -37,7 +37,7 @@ function renderHighlightedText(text: string, studentRange: any, correctRanges: a
     ranges.push({ ...studentRange, type: 'student' });
   }
   
-  if (showCorrect) {
+  if (showCorrect && correctRanges) {
     correctRanges.forEach(r => ranges.push({ ...r, type: 'correct' }));
   }
   
@@ -78,12 +78,19 @@ export default function PlayPage() {
   const [screen, setScreen] = useState('loading');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<any>(null);
+  
+  const [quizData, setQuizData] = useState<any>(null);
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   
   const [studentName, setStudentName] = useState('');
-  const [studentRange, setStudentRange] = useState<any>(null);
-  const [score, setScore] = useState<number | null>(null);
-  const [showCorrect, setShowCorrect] = useState(false);
+  const [answers, setAnswers] = useState<any[]>([]);
+  const [scores, setScores] = useState<number[]>([]);
+  
+  const [currentAnswer, setCurrentAnswer] = useState<any>(null);
+  const [selectedChoice, setSelectedChoice] = useState<number | null>(null);
+  const [lastScore, setLastScore] = useState<number>(0);
+  const [isCorrect, setIsCorrect] = useState<boolean>(false);
 
   useEffect(() => {
     async function load() {
@@ -95,21 +102,27 @@ export default function PlayPage() {
           .single();
         if (e1) throw e1;
 
-        const { data: task, error: e2 } = await supabase
-          .from('tasks')
+        const { data: quiz, error: e2 } = await supabase
+          .from('quizzes')
           .select('*')
-          .eq('id', session.task_id)
+          .eq('id', session.quiz_id)
           .single();
         if (e2) throw e2;
 
-        const { data: source, error: e3 } = await supabase
-          .from('sources')
-          .select('*')
-          .eq('id', task.source_id)
-          .single();
+        const { data: quizQuestions, error: e3 } = await supabase
+          .from('quiz_questions')
+          .select(`
+            id,
+            order_num,
+            points,
+            tasks (*)
+          `)
+          .eq('quiz_id', quiz.id)
+          .order('order_num', { ascending: true });
         if (e3) throw e3;
 
-        setData({ session, task, source });
+        setQuizData({ session, quiz });
+        setQuestions(quizQuestions);
         setScreen('join');
       } catch (err: any) {
         setError(err.message);
@@ -121,7 +134,7 @@ export default function PlayPage() {
     load();
   }, [sessionId]);
 
-  function getOffsets() {
+  function getTextSelection() {
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) return null;
     
@@ -143,28 +156,59 @@ export default function PlayPage() {
   }
   
   function handleHighlight() {
-    const range = getOffsets();
+    const range = getTextSelection();
     if (range) {
-      setStudentRange(range);
+      setCurrentAnswer(range);
       window.getSelection()?.removeAllRanges();
     }
   }
-  
-  async function handleSubmit() {
-    if (!data) return;
+
+  async function handleSubmitAnswer() {
+    const currentQuestion = questions[currentQuestionIndex];
+    const task = currentQuestion.tasks;
     
-    const calculatedScore = calculateOverlap(studentRange, data.source.highlights || []);
-    setScore(calculatedScore);
-    setShowCorrect(true);
-    
+    let score = 0;
+    let answerData = null;
+    let correct = false;
+
+    if (task.mode === 'highlight') {
+      score = calculateOverlap(currentAnswer, task.correct_answer);
+      correct = score >= 80; // 80% overlap = correct
+      answerData = currentAnswer;
+    } else if (task.mode === 'multiple-choice') {
+      correct = selectedChoice === task.correct_answer?.index;
+      score = correct ? 100 : 0;
+      answerData = { selectedIndex: selectedChoice };
+    }
+
+    // Save to database
     await supabase.from('plays').insert({
       session_id: sessionId,
       student_name: studentName,
-      selections: studentRange,
-      score: calculatedScore
+      quiz_question_id: currentQuestion.id,
+      selections: answerData,
+      score: score
     });
-    
-    setScreen('results');
+
+    // Update state
+    setAnswers([...answers, answerData]);
+    setScores([...scores, score]);
+    setLastScore(score);
+    setIsCorrect(correct);
+
+    // Show feedback screen
+    setScreen('feedback');
+  }
+
+  function handleNextQuestion() {
+    if (currentQuestionIndex < questions.length - 1) {
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
+      setCurrentAnswer(null);
+      setSelectedChoice(null);
+      setScreen('quiz');
+    } else {
+      setScreen('results');
+    }
   }
   
   function handleJoin() {
@@ -188,10 +232,11 @@ export default function PlayPage() {
     );
   }
 
-  if (!data) {
-    return <div className="min-h-screen flex items-center justify-center"><p>Not found</p></div>;
+  if (!quizData || questions.length === 0) {
+    return <div className="min-h-screen flex items-center justify-center"><p>No quiz found</p></div>;
   }
 
+  // JOIN SCREEN
   if (screen === 'join') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
@@ -200,8 +245,8 @@ export default function PlayPage() {
             <div className="w-20 h-20 bg-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
               <span className="text-3xl">📚</span>
             </div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Evidence Builder</h1>
-            <p className="text-gray-600">Ready to analyze some sources?</p>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">{quizData.quiz.title}</h1>
+            <p className="text-gray-600">{questions.length} questions</p>
           </div>
           
           <div className="space-y-4">
@@ -232,77 +277,198 @@ export default function PlayPage() {
     );
   }
   
+  // QUIZ SCREEN
   if (screen === 'quiz') {
-    const text = data.source.text_content || '';
+    const currentQuestion = questions[currentQuestionIndex];
+    const task = currentQuestion.tasks;
     
     return (
       <div className="min-h-screen bg-gray-50 p-4 md:p-8">
         <div className="max-w-4xl mx-auto">
-          <div className="bg-white rounded-lg shadow-sm p-4 mb-6 flex items-center justify-between">
-            <div>
+          <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
+            <div className="flex items-center justify-between mb-2">
               <p className="text-sm text-gray-600">Welcome, {studentName}</p>
-              <h2 className="text-lg font-semibold text-gray-900">
-                {data.source.title}
-              </h2>
+              <p className="text-sm font-semibold text-indigo-600">
+                Question {currentQuestionIndex + 1} of {questions.length}
+              </p>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div 
+                className="bg-indigo-600 h-2 rounded-full transition-all"
+                style={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }}
+              />
             </div>
           </div>
           
           <div className="bg-indigo-50 border-l-4 border-indigo-600 rounded-lg p-4 mb-6">
-            <p className="text-lg text-gray-900 font-medium">
-              {data.task.prompt}
-            </p>
+            <p className="text-lg text-gray-900 font-medium">{task.prompt}</p>
           </div>
-          
-          <div className="bg-blue-50 rounded-lg p-4 mb-6">
-            <p className="text-sm text-gray-700">
-              <strong>📝 Instructions:</strong> Select text with your mouse, 
-              then click "Highlight Selection" to mark your answer.
-            </p>
-          </div>
-          
-          <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-            <div
-              id="quiz-text"
-              className="text-lg leading-relaxed whitespace-pre-wrap select-text"
-            >
-              {studentRange 
-                ? renderHighlightedText(text, studentRange, [], false)
-                : text
-              }
-            </div>
-          </div>
-          
-          <div className="bg-white rounded-lg shadow-sm p-4 flex gap-3 sticky bottom-4">
-            <button
-              onClick={handleHighlight}
-              className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
-            >
-              Highlight Selection
-            </button>
-            
-            {studentRange && (
-              <>
-                <button
-                  onClick={() => setStudentRange(null)}
-                  className="px-4 py-3 border border-gray-300 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
+
+          {task.mode === 'highlight' && (
+            <>
+              <div className="bg-blue-50 rounded-lg p-4 mb-6">
+                <p className="text-sm text-gray-700">
+                  <strong>📝 Instructions:</strong> Select text with your mouse, then click "Highlight Selection"
+                </p>
+              </div>
+              
+              <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <div
+                  id="quiz-text"
+                  className="text-lg leading-relaxed whitespace-pre-wrap select-text"
                 >
-                  Clear
-                </button>
+                  {currentAnswer 
+                    ? renderHighlightedText(task.content, currentAnswer, [], false)
+                    : task.content
+                  }
+                </div>
+              </div>
+              
+              <div className="bg-white rounded-lg shadow-sm p-4 flex gap-3">
                 <button
-                  onClick={handleSubmit}
-                  className="flex-1 bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors"
+                  onClick={handleHighlight}
+                  className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700"
+                >
+                  Highlight Selection
+                </button>
+                
+                {currentAnswer && (
+                  <>
+                    <button
+                      onClick={() => setCurrentAnswer(null)}
+                      className="px-4 py-3 border border-gray-300 rounded-lg font-semibold hover:bg-gray-50"
+                    >
+                      Clear
+                    </button>
+                    <button
+                      onClick={handleSubmitAnswer}
+                      className="flex-1 bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700"
+                    >
+                      Submit Answer
+                    </button>
+                  </>
+                )}
+              </div>
+            </>
+          )}
+
+          {task.mode === 'multiple-choice' && (
+            <>
+              <div className="bg-white rounded-lg shadow-sm p-6 mb-6 space-y-3">
+                {task.answer_choices?.map((choice: string, index: number) => (
+                  <button
+                    key={index}
+                    onClick={() => setSelectedChoice(index)}
+                    className={`w-full text-left p-4 rounded-lg border-2 transition-colors ${
+                      selectedChoice === index
+                        ? 'border-indigo-600 bg-indigo-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
+                        selectedChoice === index
+                          ? 'border-indigo-600 bg-indigo-600'
+                          : 'border-gray-300'
+                      }`}>
+                        {selectedChoice === index && (
+                          <div className="w-3 h-3 bg-white rounded-full" />
+                        )}
+                      </div>
+                      <span className="text-lg">{choice}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              <div className="bg-white rounded-lg shadow-sm p-4">
+                <button
+                  onClick={handleSubmitAnswer}
+                  disabled={selectedChoice === null}
+                  className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                 >
                   Submit Answer
                 </button>
-              </>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // FEEDBACK SCREEN (NEW!)
+  if (screen === 'feedback') {
+    const currentQuestion = questions[currentQuestionIndex];
+    const task = currentQuestion.tasks;
+    const lastAnswer = answers[answers.length - 1];
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50 flex items-center justify-center p-4">
+        <div className="max-w-2xl w-full">
+          {/* Result Card */}
+          <div className="bg-white rounded-2xl shadow-2xl p-8 mb-6 text-center">
+            <div className={`w-32 h-32 mx-auto rounded-full flex items-center justify-center mb-6 ${
+              isCorrect ? 'bg-green-100' : 'bg-red-100'
+            }`}>
+              <span className="text-6xl">
+                {isCorrect ? '✓' : '✗'}
+              </span>
+            </div>
+
+            <h2 className={`text-4xl font-bold mb-4 ${
+              isCorrect ? 'text-green-600' : 'text-red-600'
+            }`}>
+              {isCorrect ? 'Correct!' : 'Not Quite'}
+            </h2>
+
+            <div className="text-6xl font-bold text-gray-900 mb-2">
+              +{lastScore} points
+            </div>
+
+            <p className="text-gray-600 mb-6">
+              {isCorrect 
+                ? 'Great job! Keep it up!' 
+                : 'Don\'t worry, keep trying!'}
+            </p>
+
+            {/* Show correct answer if wrong */}
+            {!isCorrect && (
+              <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4 mb-6 text-left">
+                <p className="font-semibold text-green-800 mb-2">Correct Answer:</p>
+                {task.mode === 'highlight' && (
+                  <div className="text-base leading-relaxed whitespace-pre-wrap">
+                    {renderHighlightedText(task.content, null, task.correct_answer, true)}
+                  </div>
+                )}
+                {task.mode === 'multiple-choice' && (
+                  <p className="text-green-900 font-medium">
+                    {task.answer_choices[task.correct_answer?.index]}
+                  </p>
+                )}
+              </div>
             )}
+
+            <button
+              onClick={handleNextQuestion}
+              className="w-full bg-indigo-600 text-white py-4 rounded-lg font-bold text-lg hover:bg-indigo-700 transition-colors"
+            >
+              {currentQuestionIndex < questions.length - 1 ? 'Next Question →' : 'See Final Results →'}
+            </button>
+          </div>
+
+          {/* Progress */}
+          <div className="text-center text-gray-600">
+            <p>Question {currentQuestionIndex + 1} of {questions.length} complete</p>
           </div>
         </div>
       </div>
     );
   }
   
-  const text = data.source.text_content || '';
+  // RESULTS SCREEN
+  const totalScore = scores.reduce((a, b) => a + b, 0);
+  const averageScore = Math.round(totalScore / scores.length);
   
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-8">
@@ -310,43 +476,48 @@ export default function PlayPage() {
         <div className="bg-white rounded-2xl shadow-lg p-8 mb-6 text-center">
           <div className="mb-4">
             <div className={`w-32 h-32 mx-auto rounded-full flex items-center justify-center text-5xl font-bold ${
-              (score || 0) >= 80 ? 'bg-green-100 text-green-700' :
-              (score || 0) >= 60 ? 'bg-yellow-100 text-yellow-700' :
+              averageScore >= 80 ? 'bg-green-100 text-green-700' :
+              averageScore >= 60 ? 'bg-yellow-100 text-yellow-700' :
               'bg-red-100 text-red-700'
             }`}>
-              {score}%
+              {averageScore}%
             </div>
           </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            {(score || 0) >= 80 ? '🎉 Great job!' : (score || 0) >= 60 ? '👍 Nice work!' : '💪 Keep practicing!'}
+            {averageScore >= 80 ? '🎉 Great job!' : averageScore >= 60 ? '👍 Nice work!' : '💪 Keep practicing!'}
           </h2>
-          <p className="text-gray-600">
-            Your answer had {score}% overlap with the correct answer.
+          <p className="text-gray-600 mb-4">
+            You scored an average of {averageScore}% across {questions.length} questions
+          </p>
+          <p className="text-3xl font-bold text-indigo-600">
+            Total Points: {totalScore}
           </p>
         </div>
         
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Answer Review</h3>
-          
-          <div className="mb-4 space-y-2">
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-blue-200 rounded"></div>
-              <span className="text-sm text-gray-700">Your answer</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-green-200 border-b-2 border-green-600 rounded"></div>
-              <span className="text-sm text-gray-700">Correct answer</span>
-            </div>
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Question Breakdown</h3>
+          <div className="space-y-3">
+            {questions.map((q, index) => (
+              <div key={q.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex-1">
+                  <p className="font-medium text-gray-900">Question {index + 1}</p>
+                  <p className="text-sm text-gray-600">{q.tasks.prompt}</p>
+                </div>
+                <div className="text-right">
+                  <div className={`text-2xl font-bold ${
+                    scores[index] >= 80 ? 'text-green-600' :
+                    scores[index] >= 60 ? 'text-yellow-600' :
+                    'text-red-600'
+                  }`}>
+                    {scores[index]} pts
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {scores[index] >= 80 ? '✓ Correct' : '✗ Incorrect'}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
-          
-          <div className="text-base leading-relaxed whitespace-pre-wrap bg-gray-50 p-4 rounded-lg">
-            {renderHighlightedText(text, studentRange, data.source.highlights || [], true)}
-          </div>
-        </div>
-        
-        <div className="bg-indigo-50 border-l-4 border-indigo-600 rounded-lg p-4 mb-6">
-          <p className="text-sm text-gray-600 mb-1">Question:</p>
-          <p className="text-gray-900">{data.task.prompt}</p>
         </div>
       </div>
     </div>

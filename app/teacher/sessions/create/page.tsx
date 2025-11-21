@@ -2,48 +2,41 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { useRouter } from 'next/navigation';
 
 export default function CreateSessionPage() {
-  const router = useRouter();
-  const [tasks, setTasks] = useState([]);
+  const [quizzes, setQuizzes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(null);
 
-  // Load all tasks with their source info
   useEffect(() => {
-    async function loadTasks() {
+    async function loadQuizzes() {
       const { data, error } = await supabase
-        .from('tasks')
+        .from('quizzes')
         .select(`
           id,
-          prompt,
-          mode,
-          sources (
-            title,
-            type
-          )
+          title,
+          description,
+          created_at
         `)
         .order('created_at', { ascending: false });
       
       if (!error && data) {
-        setTasks(data);
+        setQuizzes(data);
       }
       setLoading(false);
     }
-    loadTasks();
+    loadQuizzes();
   }, []);
 
-  async function startSession(taskId) {
-    setCreating(taskId);
+  async function startSession(quizId: string) {
+    setCreating(quizId);
 
-    // Generate a random join code
     const joinCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
     const { data, error } = await supabase
       .from('sessions')
       .insert({
-        task_id: taskId,
+        quiz_id: quizId,
         join_code: joinCode,
         started_at: new Date().toISOString()
       })
@@ -57,7 +50,6 @@ export default function CreateSessionPage() {
       return;
     }
 
-    // Copy link to clipboard
     const link = `${window.location.origin}/play/${data.id}`;
     await navigator.clipboard.writeText(link);
 
@@ -65,20 +57,20 @@ export default function CreateSessionPage() {
   }
 
   if (loading) {
-    return <div className="p-8">Loading tasks...</div>;
+    return <div className="p-8">Loading quizzes...</div>;
   }
 
-  if (tasks.length === 0) {
+  if (quizzes.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 p-8">
         <div className="max-w-4xl mx-auto">
           <div className="bg-white rounded-lg shadow p-6 text-center">
-            <p className="text-gray-600 mb-4">You haven't created any tasks yet.</p>
+            <p className="text-gray-600 mb-4">You haven't created any quizzes yet.</p>
             <a 
-              href="/teacher/tasks/create"
+              href="/teacher/quizzes/create"
               className="inline-block bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
             >
-              Create Your First Task
+              Create Your First Quiz
             </a>
           </div>
         </div>
@@ -91,33 +83,28 @@ export default function CreateSessionPage() {
       <div className="max-w-4xl mx-auto">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900">Start a Quiz Session</h1>
-          <p className="text-gray-600 mt-2">Choose a task to create a shareable link for students</p>
+          <p className="text-gray-600 mt-2">Choose a quiz to create a shareable link for students</p>
         </div>
 
         <div className="space-y-4">
-          {tasks.map((task) => (
-            <div key={task.id} className="bg-white rounded-lg shadow p-6">
+          {quizzes.map((quiz) => (
+            <div key={quiz.id} className="bg-white rounded-lg shadow p-6">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="px-2 py-1 bg-indigo-100 text-indigo-700 text-xs font-semibold rounded">
-                      {task.mode}
-                    </span>
-                    <span className="text-sm text-gray-500">
-                      {task.sources?.title || 'Unknown source'}
-                    </span>
-                  </div>
-                  <p className="text-lg font-medium text-gray-900">
-                    {task.prompt}
-                  </p>
+                  <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                    {quiz.title}
+                  </h2>
+                  {quiz.description && (
+                    <p className="text-gray-600 text-sm mb-2">{quiz.description}</p>
+                  )}
                 </div>
                 
                 <button
-                  onClick={() => startSession(task.id)}
-                  disabled={creating === task.id}
+                  onClick={() => startSession(quiz.id)}
+                  disabled={creating === quiz.id}
                   className="ml-4 bg-indigo-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed whitespace-nowrap"
                 >
-                  {creating === task.id ? 'Starting...' : 'Start Session'}
+                  {creating === quiz.id ? 'Starting...' : 'Start Session'}
                 </button>
               </div>
             </div>
@@ -125,8 +112,8 @@ export default function CreateSessionPage() {
         </div>
 
         <div className="mt-6">
-          <a href="/teacher/tasks/create" className="text-indigo-600 hover:underline">
-            + Create New Task
+          <a href="/teacher/quizzes/create" className="text-indigo-600 hover:underline">
+            + Create New Quiz
           </a>
         </div>
       </div>
