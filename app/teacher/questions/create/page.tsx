@@ -4,6 +4,11 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 
+interface Range {
+  start: number;
+  end: number;
+}
+
 export default function CreateQuestionPage() {
   const router = useRouter();
   const [questionType, setQuestionType] = useState('highlight');
@@ -11,7 +16,11 @@ export default function CreateQuestionPage() {
   const [message, setMessage] = useState(null);
 
   // Highlight question state
-  const [highlightData, setHighlightData] = useState({
+  const [highlightData, setHighlightData] = useState<{
+    content: string;
+    prompt: string;
+    correctRanges: Range[];
+  }>({
     content: '',
     prompt: '',
     correctRanges: []
