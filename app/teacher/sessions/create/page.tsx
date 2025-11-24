@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabaseClient';
 export default function CreateSessionPage() {
   const [quizzes, setQuizzes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(null);
+  const [creating, setCreating] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadQuizzes() {
