@@ -247,7 +247,7 @@ export default function TeacherResultsPage() {
 
                     {/* Individual Question Breakdown */}
                     <div className="space-y-2">
-                      {student.plays.map((play, i) => (
+                      {student.plays.map((play: any, i: number) => (
                         <div
                           key={i}
                           className="flex items-center justify-between p-3 bg-gray-50 rounded"
