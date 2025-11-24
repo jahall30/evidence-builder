@@ -69,14 +69,14 @@ export default function CreateQuestionPage() {
     }
   }
 
-  function removeRange(index) {
+  function removeRange(index: number) {
     setHighlightData({
       ...highlightData,
       correctRanges: highlightData.correctRanges.filter((_, i) => i !== index)
     });
   }
 
-  function updateChoice(index, value) {
+  function updateChoice(index: number, value: string) {
     const newChoices = [...mcData.choices];
     newChoices[index] = value;
     setMcData({ ...mcData, choices: newChoices });
