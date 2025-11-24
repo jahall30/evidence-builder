@@ -4,10 +4,10 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
 export default function CreateTaskPage() {
-  const [sources, setSources] = useState([]);
+  const [sources, setSources] = useState<any[]> ([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState(null);
+  const [message, setMessage] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
     sourceId: '',
