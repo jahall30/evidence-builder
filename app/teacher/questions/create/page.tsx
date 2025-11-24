@@ -13,7 +13,7 @@ export default function CreateQuestionPage() {
   const router = useRouter();
   const [questionType, setQuestionType] = useState('highlight');
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState(null);
+  const [message, setMessage] = useState<string | null>(null) ;
 
   // Highlight question state
   const [highlightData, setHighlightData] = useState<{
