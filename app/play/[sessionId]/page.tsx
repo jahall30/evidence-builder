@@ -7,7 +7,14 @@ import { supabase } from '@/lib/supabaseClient';
 function clamp(n: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, n));
 }
-
+function shuffleArray<T>(array: T[]): T[] {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
 function calculateOverlap(studentRange: any, correctRanges: any[]) {
   if (!studentRange || !correctRanges || correctRanges.length === 0) return 0;
   
@@ -83,6 +90,14 @@ export default function PlayPage() {
   const [questions, setQuestions] = useState<any[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   
+  const [shuffledChoices, setShuffledChoices] = useState<string[]>([]);
+  useEffect(() => {
+  const currentQ = questions[currentQuestionIndex];
+  if (currentQ?.tasks?.mode === 'multiple-choice') {
+    setShuffledChoices(shuffleArray(currentQ.tasks.answer_choices || []));
+  }
+}, [currentQuestionIndex, questions]);
+
   const [studentName, setStudentName] = useState('');
   const [answers, setAnswers] = useState<any[]>([]);
   const [scores, setScores] = useState<number[]>([]);
@@ -176,10 +191,14 @@ export default function PlayPage() {
       correct = score >= 80; // 80% overlap = correct
       answerData = currentAnswer;
     } else if (task.mode === 'multiple-choice') {
-      correct = selectedChoice === task.correct_answer?.index;
-      score = correct ? 100 : 0;
-      answerData = { selectedIndex: selectedChoice };
-    }
+  const selectedValue = shuffledChoices[selectedChoice!];
+  console.log('Selected:', selectedValue);
+  console.log('Correct:', task.correct_answer?.value);
+  console.log('Match:', selectedValue === task.correct_answer?.value);
+  correct = selectedValue === task.correct_answer?.value;
+  score = correct ? 100 : 0;
+  answerData = { selectedValue };
+}
 
     // Save to database
     await supabase.from('plays').insert({
@@ -355,7 +374,7 @@ export default function PlayPage() {
           {task.mode === 'multiple-choice' && (
             <>
               <div className="bg-white rounded-lg shadow-sm p-6 mb-6 space-y-3">
-                {task.answer_choices?.map((choice: string, index: number) => (
+                {shuffledChoices.map((choice: string, index: number) => (
                   <button
                     key={index}
                     onClick={() => setSelectedChoice(index)}
@@ -402,7 +421,7 @@ export default function PlayPage() {
     const currentQuestion = questions[currentQuestionIndex];
     const task = currentQuestion.tasks;
     const lastAnswer = answers[answers.length - 1];
-
+  
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50 flex items-center justify-center p-4">
         <div className="max-w-2xl w-full">
@@ -441,12 +460,12 @@ export default function PlayPage() {
                     {renderHighlightedText(task.content, null, task.correct_answer, true)}
                   </div>
                 )}
-                {task.mode === 'multiple-choice' && (
-                  <p className="text-green-900 font-medium">
-                    {task.answer_choices[task.correct_answer?.index]}
-                  </p>
-                )}
-              </div>
+               {task.mode === 'multiple-choice' && (
+  <p className="text-green-900 font-medium">
+    {task.correct_answer?.value}
+  </p>
+)} 
+</div>
             )}
 
             <button

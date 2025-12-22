@@ -120,13 +120,13 @@ export default function CreateQuestionPage() {
       }
 
       taskData = {
-        mode: 'multiple-choice',
-        content: mcData.question,
-        prompt: mcData.question,
-        answer_choices: mcData.choices,
-        correct_answer: { index: mcData.correctIndex },
-        dok_level: 2
-      };
+  mode: 'multiple-choice',
+  content: mcData.question,
+  prompt: mcData.question,
+  answer_choices: mcData.choices,
+  correct_answer: { value: mcData.choices[mcData.correctIndex] },
+  dok_level: 2
+};
     }
 
     const { error } = await supabase.from('tasks').insert(taskData);
