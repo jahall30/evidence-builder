@@ -37,7 +37,7 @@ export default function TeacherResultsPage() {
 
   async function loadSessionResults(sessionId: string) {
     setLoadingPlays(true);
-    
+
     const session = sessions.find(s => s.id === sessionId);
     setSelectedSession(session);
 
@@ -70,6 +70,29 @@ export default function TeacherResultsPage() {
     }
     setLoadingPlays(false);
   }
+async function handleShareChallenge() {
+  if (!selectedSession) {
+    alert('No session selected');
+    return;
+  }
+
+  const challengeName = selectedSession.quizzes?.title + ' Challenge';
+
+  const { error } = await supabase
+    .from('sessions')
+    .update({ 
+      is_challenge: true,
+      challenge_name: challengeName 
+    })
+    .eq('id', selectedSession.id);
+
+  if (error) {
+    alert('Error creating challenge: ' + error.message);
+    return;
+  }
+  const link = window.location.origin + '/challenge/' + selectedSession.id;
+  alert('Challenge created! Share this link: ' + link);
+}
 
   function getStudentSummary() {
     const studentMap = new Map();
@@ -138,9 +161,7 @@ export default function TeacherResultsPage() {
                           Started: {new Date(session.started_at).toLocaleDateString()} at{' '}
                           {new Date(session.started_at).toLocaleTimeString()}
                         </p>
-                        <p className="text-xs text-gray-500">
-                          Join Code: {session.join_code}
-                        </p>
+                        <p className="text-xs text-gray-500">Join Code: {session.join_code}</p>
                       </div>
                       <span className="text-indigo-600 font-semibold">View Results →</span>
                     </div>
@@ -179,7 +200,32 @@ export default function TeacherResultsPage() {
           </p>
           <p className="text-sm text-gray-500">Join Code: {selectedSession.join_code}</p>
         </div>
+<div className="bg-white rounded-lg shadow p-6 mb-6">
+          <h1 className="text-2xl font-bold mb-2">
+            {selectedSession.quizzes?.title || 'Untitled Quiz'}
+          </h1>
+          <p className="text-gray-600">
+            Started: {new Date(selectedSession.started_at).toLocaleDateString()} at{' '}
+            {new Date(selectedSession.started_at).toLocaleTimeString()}
+          </p>
+          <p className="text-sm text-gray-500">Join Code: {selectedSession.join_code}</p>
+        </div>
 
+        {/* ADD THIS NEW SECTION */}
+        <div className="bg-indigo-50 border-2 border-indigo-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-bold text-indigo-900">Share as Challenge</h3>
+              <p className="text-sm text-indigo-700">Let other classes try to beat this score!</p>
+            </div>
+            <button 
+            onClick={handleShareChallenge}
+              className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-indigo-700"
+            >
+              Generate Challenge Link
+            </button>
+          </div>
+        </div>
         {loadingPlays ? (
           <div className="bg-white rounded-lg shadow p-6">
             <p>Loading results...</p>
@@ -205,14 +251,13 @@ export default function TeacherResultsPage() {
                     {Math.round(
                       studentSummaries.reduce((sum, s) => sum + s.averageScore, 0) /
                         studentSummaries.length
-                    )}%
+                    )}
+                    %
                   </div>
                   <div className="text-sm text-gray-600">Class Average</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-3xl font-bold text-blue-600">
-                    {plays.length}
-                  </div>
+                  <div className="text-3xl font-bold text-blue-600">{plays.length}</div>
                   <div className="text-sm text-gray-600">Total Responses</div>
                 </div>
               </div>
@@ -234,11 +279,15 @@ export default function TeacherResultsPage() {
                         </p>
                       </div>
                       <div className="text-right">
-                        <div className={`text-3xl font-bold ${
-                          student.averageScore >= 80 ? 'text-green-600' :
-                          student.averageScore >= 60 ? 'text-yellow-600' :
-                          'text-red-600'
-                        }`}>
+                        <div
+                          className={`text-3xl font-bold ${
+                            student.averageScore >= 80
+                              ? 'text-green-600'
+                              : student.averageScore >= 60
+                              ? 'text-yellow-600'
+                              : 'text-red-600'
+                          }`}
+                        >
                           {student.averageScore}%
                         </div>
                         <div className="text-sm text-gray-600">Average Score</div>
@@ -254,17 +303,22 @@ export default function TeacherResultsPage() {
                         >
                           <div className="flex-1">
                             <p className="text-sm font-medium text-gray-900">
-                              Q{play.quiz_questions?.order_num}: {play.quiz_questions?.tasks?.prompt}
+                              Q{play.quiz_questions?.order_num}:{' '}
+                              {play.quiz_questions?.tasks?.prompt}
                             </p>
                             <p className="text-xs text-gray-500">
                               {play.quiz_questions?.tasks?.mode}
                             </p>
                           </div>
-                          <div className={`text-lg font-bold ${
-                            play.score >= 80 ? 'text-green-600' :
-                            play.score >= 60 ? 'text-yellow-600' :
-                            'text-red-600'
-                          }`}>
+                          <div
+                            className={`text-lg font-bold ${
+                              play.score >= 80
+                                ? 'text-green-600'
+                                : play.score >= 60
+                                ? 'text-yellow-600'
+                                : 'text-red-600'
+                            }`}
+                          >
                             {play.score}%
                           </div>
                         </div>
