@@ -335,7 +335,7 @@ const { data: quiz, error: quizError } = await supabase
                           Mark Correct Answer
                         </label>
                         <p className="text-xs text-gray-500 mb-2">
-                          Select text below, then click "Highlight"
+                          Select text below, then click &quot;Highlight&quot;
                         </p>
                         <div
                           id="highlight-preview"
@@ -356,7 +356,7 @@ const { data: quiz, error: quizError } = await supabase
                             {highlightRanges.map((range, i) => (
                               <div key={i} className="flex items-center gap-2 text-xs bg-yellow-50 p-2 rounded mb-1">
                                 <span className="flex-1">
-                                  "{highlightData.content.slice(range.start, range.end)}"
+                                  &quot;{highlightData.content.slice(range.start, range.end)}&quot;
                                 </span>
                                 <button
                                   onClick={() => removeHighlightRange(i)}
@@ -439,7 +439,7 @@ const { data: quiz, error: quizError } = await supabase
 
               {questions.length === 0 ? (
                 <p className="text-gray-500 text-sm text-center py-8">
-                  No questions yet. Click "Add Question" to get started.
+                  No questions yet. Click &quot;Add Question&quot; to get started.
                 </p>
               ) : (
                 <div className="space-y-2 mb-6 max-h-96 overflow-y-auto">

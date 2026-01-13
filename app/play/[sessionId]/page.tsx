@@ -327,7 +327,7 @@ export default function PlayPage() {
             <>
               <div className="bg-blue-50 rounded-lg p-4 mb-6">
                 <p className="text-sm text-gray-700">
-                  <strong>📝 Instructions:</strong> Select text with your mouse, then click "Highlight Selection"
+                  <strong>📝 Instructions:</strong> Select text with your mouse, then click &quot;Highlight Selection&quot;
                 </p>
               </div>
               

@@ -34,44 +34,39 @@ export default function ChallengePage({ params }: { params: Promise<{ sessionId:
     }
     setLoading(false);
   }
+  async function handleAcceptChallenge() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      alert('You must be logged in to accept challenges');
+      router.push('/login');
+      return;
+    }
+
+    const joinCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+    
+    const { data: newSession, error } = await supabase
+      .from('sessions')
+      .insert({
+        quiz_id: challenge.quizzes.id,
+        join_code: joinCode,
+        started_at: new Date().toISOString(),
+        challenge_session_id: sessionId
+      })
+      .select()
+      .single();
+
+    if (error) {
+      alert('Error creating session: ' + error.message);
+      return;
+    }
+
+    router.push(`/teacher/sessions/create?quizId=${challenge.quizzes.id}&challengeId=${sessionId}`);
+  }
+
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">Loading challenge...</div>;
   }
-async function loadChallenge() {
-    // ... existing code ...
-    setLoading(false);
-  }
 
- async function handleAcceptChallenge() {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    alert('You must be logged in to accept challenges');
-    router.push('/login');
-    return;
-  }
-
-  const joinCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-  
-  const { data: newSession, error } = await supabase
-    .from('sessions')
-    .insert({
-      quiz_id: challenge.quizzes.id,
-      join_code: joinCode,
-      started_at: new Date().toISOString(),
-      challenge_session_id: sessionId
-    })
-    .select()
-    .single();
-
-  if (error) {
-    alert('Error creating session: ' + error.message);
-    return;
-  }
-
-  router.push(`/teacher/sessions/create?quizId=${challenge.quizzes.id}&challengeId=${sessionId}`);
-}
-
-  if (loading) {
   if (!challenge) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -105,10 +100,9 @@ async function loadChallenge() {
         </button>
 
         <p className="text-center text-sm text-gray-500 mt-4">
-          You'll launch a quiz session for your students to compete
+          You&apos;ll launch a quiz session for your students to compete
         </p>
       </div>
     </div>
   );
-}
 }

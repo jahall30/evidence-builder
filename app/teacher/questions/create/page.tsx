@@ -205,7 +205,7 @@ export default function CreateQuestionPage() {
               <div className="bg-white rounded-lg shadow p-6">
                 <h2 className="text-xl font-semibold mb-4">Mark Correct Answer</h2>
                 <p className="text-sm text-gray-600 mb-4">
-                  Select text below, then click "Highlight Selection" to mark it as a correct answer
+                  Select text below, then click &quot;Highlight Selection&quot; to mark it as a correct answer
                 </p>
                 
                 <div
@@ -229,7 +229,7 @@ export default function CreateQuestionPage() {
                       {highlightData.correctRanges.map((range, i) => (
                         <div key={i} className="flex items-center justify-between bg-green-50 p-2 rounded">
                           <span className="text-sm">
-                            "{highlightData.content.slice(range.start, range.end)}"
+                            &quot;{highlightData.content.slice(range.start, range.end)}&quot;
                           </span>
                           <button
                             onClick={() => removeRange(i)}
