@@ -200,16 +200,6 @@ async function handleShareChallenge() {
           </p>
           <p className="text-sm text-gray-500">Join Code: {selectedSession.join_code}</p>
         </div>
-<div className="bg-white rounded-lg shadow p-6 mb-6">
-          <h1 className="text-2xl font-bold mb-2">
-            {selectedSession.quizzes?.title || 'Untitled Quiz'}
-          </h1>
-          <p className="text-gray-600">
-            Started: {new Date(selectedSession.started_at).toLocaleDateString()} at{' '}
-            {new Date(selectedSession.started_at).toLocaleTimeString()}
-          </p>
-          <p className="text-sm text-gray-500">Join Code: {selectedSession.join_code}</p>
-        </div>
 
         {/* ADD THIS NEW SECTION */}
         <div className="bg-indigo-50 border-2 border-indigo-200 rounded-lg p-4 mb-6">
