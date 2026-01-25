@@ -44,7 +44,29 @@ export default function TeacherDashboard() {
     await supabase.auth.signOut();
     router.push('/login');
   }
+async function launchQuiz(quizId: string) {
+  const joinCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const { data, error } = await supabase
+    .from('sessions')
+    .insert({
+      quiz_id: quizId,
+      join_code: joinCode,
+      started_at: new Date().toISOString(),
+      teacher_id: user?.id
+    })
+    .select()
+    .single();
+
+  if (error) {
+    alert('Error: ' + error.message);
+    return;
+  }
+
+  router.push(`/teacher/session/${data.id}`);
+}
   function getQuestionCount(quiz: any) {
     return quiz.quiz_questions?.[0]?.count || 0;
   }
@@ -154,12 +176,12 @@ export default function TeacherDashboard() {
                     </div>
 
                     <div className="flex gap-2 ml-4">
-                      <Link
-                        href={`/teacher/sessions/create?quizId=${quiz.id}`}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 whitespace-nowrap"
-                      >
-                        Launch
-                      </Link>
+                      <button
+  onClick={() => launchQuiz(quiz.id)}
+  className="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 whitespace-nowrap"
+>
+  Launch
+</button>
                       <Link
                         href={`/teacher/results?quizId=${quiz.id}`}
                         className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300"
