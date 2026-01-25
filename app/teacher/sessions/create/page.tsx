@@ -9,24 +9,33 @@ export default function CreateSessionPage() {
   const [creating, setCreating] = useState<string | null>(null);
 
   useEffect(() => {
-    async function loadQuizzes() {
-      const { data, error } = await supabase
-        .from('quizzes')
-        .select(`
-          id,
-          title,
-          description,
-          created_at
-        `)
-        .order('created_at', { ascending: false });
-      
-      if (!error && data) {
-        setQuizzes(data);
-      }
-      setLoading(false);
-    }
     loadQuizzes();
   }, []);
+
+  async function loadQuizzes() {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('quizzes')
+      .select(`
+        id,
+        title,
+        description,
+        created_at
+      `)
+      .eq('teacher_id', user.id)
+      .order('created_at', { ascending: false });
+    
+    if (!error && data) {
+      setQuizzes(data);
+    }
+    setLoading(false);
+  }
 
   async function startSession(quizId: string) {
     setCreating(quizId);
@@ -65,7 +74,7 @@ export default function CreateSessionPage() {
       <div className="min-h-screen bg-gray-50 p-8">
         <div className="max-w-4xl mx-auto">
           <div className="bg-white rounded-lg shadow p-6 text-center">
-            <p className="text-gray-600 mb-4">You haven't created any quizzes yet.</p>
+            <p className="text-gray-600 mb-4">You haven&apos;t created any quizzes yet.</p>
             <a 
               href="/teacher/quizzes/create"
               className="inline-block bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
