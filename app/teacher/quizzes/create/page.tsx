@@ -201,10 +201,27 @@ const { data: quiz, error: quizError } = await supabase
 
       if (linkError) throw linkError;
 
-      setMessage('✅ Quiz created successfully!');
-      setTimeout(() => {
-        router.push('/teacher/sessions/create');
-      }, 1500);
+      setMessage('✅ Quiz created successfully! Launching...');
+
+// Create session and redirect to live page
+const joinCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+
+const { data: session, error: sessionError } = await supabase
+  .from('sessions')
+  .insert({
+    quiz_id: quiz.id,
+    join_code: joinCode,
+    started_at: new Date().toISOString()
+  })
+  .select()
+  .single();
+
+if (sessionError) {
+  router.push('/teacher/dashboard');
+  return;
+}
+
+router.push(`/teacher/session/${session.id}`);
 
     } catch (err: any) {
       setMessage(`Error: ${err.message}`);
