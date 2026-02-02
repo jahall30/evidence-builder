@@ -31,7 +31,15 @@ export default function CreateQuizPage() {
     choices: ['', '', '', ''],
     correctIndex: 0
   });
-
+// Evidence Hunter state
+const [ehData, setEhData] = useState({
+  imageUrl: '',
+  prompt: '',
+  targetX: 0,
+  targetY: 0,
+  targetSet: false
+});
+const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -76,7 +84,40 @@ export default function CreateQuizPage() {
     newChoices[index] = value;
     setMcData({ ...mcData, choices: newChoices });
   }
+async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  const file = e.target.files?.[0];
+  if (!file) return;
 
+  setUploading(true);
+
+  const fileExt = file.name.split('.').pop();
+  const fileName = `${Date.now()}.${fileExt}`;
+
+  const { data, error } = await supabase.storage
+    .from('images')
+    .upload(fileName, file);
+
+  if (error) {
+    alert('Error uploading image: ' + error.message);
+    setUploading(false);
+    return;
+  }
+
+  const { data: urlData } = supabase.storage
+    .from('images')
+    .getPublicUrl(fileName);
+
+  setEhData({ ...ehData, imageUrl: urlData.publicUrl });
+  setUploading(false);
+}
+
+function handleImageClick(e: React.MouseEvent<HTMLImageElement>) {
+  const rect = e.currentTarget.getBoundingClientRect();
+  const x = ((e.clientX - rect.left) / rect.width) * 100;
+  const y = ((e.clientY - rect.top) / rect.height) * 100;
+  
+  setEhData({ ...ehData, targetX: x, targetY: y, targetSet: true });
+}
   function addQuestion() {
     let questionData;
 
@@ -96,24 +137,44 @@ export default function CreateQuizPage() {
         prompt: highlightData.prompt,
         correct_answer: highlightRanges
       };
-    } else {
-      if (!mcData.question.trim()) {
-        alert('Please enter a question');
-        return;
-      }
-      if (mcData.choices.some(c => !c.trim())) {
-        alert('Please fill in all 4 answer choices');
-        return;
-      }
+    } else if (questionType === 'multiple-choice') {
+  if (!mcData.question.trim()) {
+    alert('Please enter a question');
+    return;
+  }
+  if (mcData.choices.some(c => !c.trim())) {
+    alert('Please fill in all 4 answer choices');
+    return;
+  }
 
-      questionData = {
-        mode: 'multiple-choice',
-        content: mcData.question,
-        prompt: mcData.question,
-        answer_choices: mcData.choices,
-        correct_answer: { value: mcData.choices[mcData.correctIndex] }
-      };
-    }
+  questionData = {
+    mode: 'multiple-choice',
+    content: mcData.question,
+    prompt: mcData.question,
+    answer_choices: mcData.choices,
+    correct_answer: { value: mcData.choices[mcData.correctIndex] }
+  };
+} else if (questionType === 'evidence-hunter') {
+  if (!ehData.imageUrl) {
+    alert('Please upload an image');
+    return;
+  }
+  if (!ehData.prompt.trim()) {
+    alert('Please enter a question prompt');
+    return;
+  }
+  if (!ehData.targetSet) {
+    alert('Please click on the image to set the correct answer location');
+    return;
+  }
+
+  questionData = {
+    mode: 'evidence-hunter',
+    content: ehData.imageUrl,
+    prompt: ehData.prompt,
+    correct_answer: { x: ehData.targetX, y: ehData.targetY, radius: 10 }
+  };
+}
 
     setQuestions([...questions, questionData]);
 
@@ -121,6 +182,7 @@ export default function CreateQuizPage() {
     setHighlightData({ content: '', prompt: '' });
     setHighlightRanges([]);
     setMcData({ question: '', choices: ['', '', '', ''], correctIndex: 0 });
+    setEhData({ imageUrl: '', prompt: '', targetX: 0, targetY: 0, targetSet: false });
     setShowQuestionForm(false);
   }
 
@@ -295,29 +357,38 @@ router.push(`/teacher/session/${session.id}`);
                 </div>
 
                 {/* Question Type Toggle */}
-                <div className="flex gap-4">
-                  <button
-                    onClick={() => setQuestionType('highlight')}
-                    className={`flex-1 py-2 px-4 rounded-lg font-semibold transition-colors ${
-                      questionType === 'highlight'
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    📝 Highlight Text
-                  </button>
-                  <button
-                    onClick={() => setQuestionType('multiple-choice')}
-                    className={`flex-1 py-2 px-4 rounded-lg font-semibold transition-colors ${
-                      questionType === 'multiple-choice'
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    ✓ Multiple Choice
-                  </button>
-                </div>
-
+<div className="flex gap-2">
+  <button
+    onClick={() => setQuestionType('highlight')}
+    className={`flex-1 py-2 px-3 rounded-lg font-semibold transition-colors text-sm ${
+      questionType === 'highlight'
+        ? 'bg-indigo-600 text-white'
+        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+    }`}
+  >
+    📝 Highlight
+  </button>
+  <button
+    onClick={() => setQuestionType('multiple-choice')}
+    className={`flex-1 py-2 px-3 rounded-lg font-semibold transition-colors text-sm ${
+      questionType === 'multiple-choice'
+        ? 'bg-indigo-600 text-white'
+        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+    }`}
+  >
+    ✓ Multiple Choice
+  </button>
+  <button
+    onClick={() => setQuestionType('evidence-hunter')}
+    className={`flex-1 py-2 px-3 rounded-lg font-semibold transition-colors text-sm ${
+      questionType === 'evidence-hunter'
+        ? 'bg-indigo-600 text-white'
+        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+    }`}
+  >
+    🎯 Evidence Hunter
+  </button>
+</div>
                 {/* Highlight Question Form */}
                 {questionType === 'highlight' && (
                   <div className="space-y-4">
@@ -435,7 +506,62 @@ router.push(`/teacher/session/${session.id}`);
                     </div>
                   </div>
                 )}
+{/* Evidence Hunter Form */}
+{questionType === 'evidence-hunter' && (
+  <div className="space-y-4">
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-2">
+        Upload Image
+      </label>
+      <input
+        type="file"
+        accept="image/*"
+        onChange={handleImageUpload}
+        className="w-full border border-gray-300 rounded-lg px-3 py-2"
+      />
+      {uploading && <p className="text-sm text-gray-500 mt-2">Uploading...</p>}
+    </div>
 
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-2">
+        Question Prompt
+      </label>
+      <input
+        type="text"
+        value={ehData.prompt}
+        onChange={(e) => setEhData({ ...ehData, prompt: e.target.value })}
+        placeholder="e.g., Find evidence that the author believes Jackson is acting like a king"
+        className="w-full border border-gray-300 rounded-lg px-3 py-2"
+      />
+    </div>
+
+    {ehData.imageUrl && (
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Click on the correct answer location
+        </label>
+        <div className="relative inline-block">
+          <img
+            src={ehData.imageUrl}
+            alt="Question image"
+            onClick={handleImageClick}
+            className="max-w-full border rounded-lg cursor-crosshair"
+            style={{ maxHeight: '400px' }}
+          />
+          {ehData.targetSet && (
+            <div
+              className="absolute w-8 h-8 bg-green-500 rounded-full border-4 border-white shadow-lg transform -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+              style={{ left: `${ehData.targetX}%`, top: `${ehData.targetY}%` }}
+            />
+          )}
+        </div>
+        {ehData.targetSet && (
+          <p className="text-sm text-green-600 mt-2">✓ Target location set</p>
+        )}
+      </div>
+    )}
+  </div>
+)}
                 {/* Add Question Button */}
                 <button
                   onClick={addQuestion}
